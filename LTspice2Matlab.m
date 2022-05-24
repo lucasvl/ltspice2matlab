@@ -506,33 +506,33 @@ function raw_data = LTspice2Matlab( filename, varargin )
             raw_data.time_vect = fread( fid, NumPnts_DS, 'double', (NumVars-1)*4 + (downsamp_N-1)*(NumVars+1)*4, machineformat ).';
 
             % Process stepped data
-            if step_flag
-                if downsamp_N > 1
-                    warning( 'LTspice2Matlab:downsampleSteps', ...
-                            'Stepped data found and downsampling enabled. Steps may not be recognized properly.' );
-                end
-
-                % Stepped data starts on a duplicate entry in LTspice IV
-                steps = find( diff(raw_data.time_vect) == 0.0 );
-                if numel(steps) > 0
-                    % Remove duplicate entries
-                    raw_data.variable_mat(:,steps) = [];
-                    raw_data.time_vect(steps) = [];
-
-                    num_steps = numel(steps) + 1;
-                else
-                    % Stepped data starts with the same time/source value in LTspice XVII
-                    num_steps = numel(find( raw_data.time_vect == raw_data.time_vect(1) ));
-                end
-
-                raw_data.num_steps = num_steps;
-                % Reshape value matrix and time/source vector
-                mat_size = size(raw_data.variable_mat);
-                raw_data.variable_mat = reshape(raw_data.variable_mat, mat_size(1), mat_size(2) / num_steps, num_steps);
-                raw_data.time_vect = reshape(raw_data.time_vect, mat_size(2) / num_steps, num_steps).';
-                % Update num_data_pnts
-                raw_data.num_data_pnts = mat_size(2) / num_steps;
-            end
+%             if step_flag
+%                 if downsamp_N > 1
+%                     warning( 'LTspice2Matlab:downsampleSteps', ...
+%                             'Stepped data found and downsampling enabled. Steps may not be recognized properly.' );
+%                 end
+% 
+%                 % Stepped data starts on a duplicate entry in LTspice IV
+%                 steps = find( diff(raw_data.time_vect) == 0.0 );
+%                 if numel(steps) > 0
+%                     % Remove duplicate entries
+%                     raw_data.variable_mat(:,steps) = [];
+%                     raw_data.time_vect(steps) = [];
+% 
+%                     num_steps = numel(steps) + 1;
+%                 else
+%                     % Stepped data starts with the same time/source value in LTspice XVII
+%                     num_steps = numel(find( raw_data.time_vect == raw_data.time_vect(1) ));
+%                 end
+% 
+%                 raw_data.num_steps = num_steps;
+%                 % Reshape value matrix and time/source vector
+%                 mat_size = size(raw_data.variable_mat);
+%                 raw_data.variable_mat = reshape(raw_data.variable_mat, mat_size(1), mat_size(2) / num_steps, num_steps);
+%                 raw_data.time_vect = reshape(raw_data.time_vect, mat_size(2) / num_steps, num_steps).';
+%                 % Update num_data_pnts
+%                 raw_data.num_data_pnts = mat_size(2) / num_steps;
+%             end
 
             % Rename time_vect and add source name for .dc simulations
             if strcmpi( simulation_type, '.dc' )
@@ -829,4 +829,39 @@ function raw_data = LTspice2Matlab( filename, varargin )
         raw_data.source_vect = raw_data.source_vect + general_offset;
     elseif isfield( raw_data, 'param_vect' )
         raw_data.param_vect = raw_data.param_vect + general_offset;
+    end
+
+    if step_flag
+        if downsamp_N > 1
+            warning( 'LTspice2Matlab:downsampleSteps', ...
+                    'Stepped data found and downsampling enabled. Steps may not be recognized properly.' );
+        end
+
+        % Stepped data starts on a duplicate entry in LTspice IV
+        steps = find( diff(raw_data.time_vect) == 0.0 );
+        if numel(steps) > 0
+            % Remove duplicate entries
+            raw_data.variable_mat(:,steps) = [];
+            raw_data.time_vect(steps) = [];
+
+            num_steps = numel(steps) + 1;
+        else
+            % Stepped data starts with the same time/source value in LTspice XVII
+            num_steps = numel(find( raw_data.time_vect == raw_data.time_vect(1) ));
+        end
+
+        raw_data.num_steps = num_steps;
+        % Reshape value matrix and time/source vector
+        
+        % EDIT: Steps may not have the same number of datapoints!
+        stepstartpoints = find( raw_data.time_vect == raw_data.time_vect(1) );
+        mat_size = size(raw_data.variable_mat);
+        for i = 1:num_steps-1
+            raw_data.variable_struct{i} = raw_data.variable_mat(:, stepstartpoints(i):stepstartpoints(i+1)-1);
+            raw_data.time_struct{i} = raw_data.time_vect(stepstartpoints(i):stepstartpoints(i+1)-1);
+            raw_data.num_data_pnts_struct{i} = stepstartpoints(i+1) - stepstartpoints(i);
+        end
+        raw_data.variable_struct{num_steps} = raw_data.variable_mat(:, stepstartpoints(end):end);
+        raw_data.time_struct{num_steps} = raw_data.time_vect(stepstartpoints(end):end);
+        raw_data.num_data_pnts_struct{num_steps} = raw_data.num_data_pnts - stepstartpoints(end)+1; 
     end
